@@ -172,7 +172,12 @@ Index of the design notes for the harper core: one line per note, grouped by the
 - [Version gate at startup: downgrades prompt, and only the minor direction is confirmable](dataLayer/DESIGN.md#version-gate-at-startup-downgrades-prompt-and-only-the-minor-direction-is-confirmable) — Data newer than the binary prompts at start; only the downgrade direction confirms, via `CONFIRM_DOWNGRADE`.
 - [Opening a source LMDB DBI for migration must thread through `compression`](dataLayer/DESIGN.md#opening-a-source-lmdb-dbi-for-migration-must-thread-through-compression) — A migration open of a source LMDB DBI must pass the persisted per-attribute `compression`, as `databases.ts` does.
 - [System table bootstrap: `systemSchema.json` + upgrade directive](dataLayer/DESIGN.md#system-table-bootstrap-systemschemajson--upgrade-directive) — A new system table needs `systemSchema.json`, `SYSTEM_TABLE_NAMES` and an upgrade directive versioned to the first release that ships the dependent code.
+<<<<<<< HEAD
 - [RocksDB backup/restore: the restore lock + marker protocol (`dataLayer/restoreMarker.ts`, `dataLayer/rocksdbBackup.ts`)](dataLayer/DESIGN.md#rocksdb-backuprestore-the-restore-lock--marker-protocol-datalayerrestoremarkerts-datalayerrocksdbbackupts) — A flock and an fsynced `.restoring` marker in a sibling `` `restore` `` directory serialize restores and make an interrupted one recoverable.
+=======
+- [RocksDB backup/restore: the restore lock + marker protocol (`dataLayer/restoreMarker.ts`, `dataLayer/rocksdbBackup.ts`)](dataLayer/DESIGN.md#rocksdb-backuprestore-the-restore-lock--marker-protocol-datalayerrestoremarkerts-datalayerrocksdbbackupts) — A flock and an fsynced `.restoring` marker in a sibling `restore` directory serialize restores and make an interrupted one recoverable.
+- [Backup repository coordination: the management lock, pins, and the restore exclusion](dataLayer/DESIGN.md#backup-repository-coordination-the-management-lock-pins-and-the-restore-exclusion-datalayerbackuprepositoryts-datalayerrestoremarkerts) — One Harper-level lock over every repository mutation; a pin lives exactly as long as the restoring marker it protects.
+>>>>>>> c21cadce6 (docs: record the backup repository coordination invariants in DESIGN.md)
 - [RocksDB managed backups: blob snapshots (`dataLayer/blobBackup.ts`)](dataLayer/DESIGN.md#rocksdb-managed-backups-blob-snapshots-datalayerblobbackupts) — Managed backups snapshot blob roots alongside engine data unless `exclude_blobs`.
 
 ## utility/
