@@ -11,7 +11,27 @@ import { ClientError } from '../utility/errors/hdbError.ts';
 import { get as getConfigValue } from '../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 
+<<<<<<< HEAD
 /** Tar entry name of the manifest. First entry in the archive. */
+=======
+/**
+ * The machine-readable identification carried by a `get_backup` archive.
+ *
+ * The manifest is the first entry in the tar because a `.tar.gz` must be inflated from the start to
+ * reach a later entry: a trailing manifest would cost a full pass over a multi-gigabyte archive just
+ * to decide whether to reject it.
+ *
+ * Compatibility is a capability list rather than a version comparison. What makes an archive
+ * unreadable is a format the target cannot decode, and the engine-level ones already fail closed on
+ * their own (RocksDB refuses a `format_version` it does not understand). The ones that do not are
+ * record struct mode (DESIGN.md "Struct mode is gated to primary DBIs"), transaction-log framing,
+ * and deflate-compressed blob bodies (harper#2443). So the producer declares what a reader needs and
+ * the reader refuses any token it does not have; new tokens are additive, and an older reader
+ * refusing an unknown one is the intended answer.
+ */
+
+/** First entry in the archive. */
+>>>>>>> ab4ed47ba (Close the round-3 review findings on pins, ordering and repository creation)
 export const ARCHIVE_MANIFEST_ENTRY = 'harper-backup.json';
 
 /** Bumped only when the document shape changes incompatibly; a reader refuses a version above its own. */
@@ -30,14 +50,13 @@ export const SUPPORTED_ARCHIVE_CAPABILITIES: readonly string[] = [
 
 export interface BackupArchiveManifest {
 	archive_schema_version: number;
-	/** Harper release that produced the archive. Recorded for operators and logs, never gated on. */
+	/** Never gated on; the capability list is. */
 	harper_version: string;
-	/** Binding version, which is what actually fixes the engine and transaction-log formats. */
+	/** What actually fixes the engine and transaction-log formats. */
 	rocksdb_js_version: string;
 	database: string;
 	blobs: boolean;
 	blob_root_count: number;
-	/** Capability tokens a reader must support; see the module note. */
 	requires: string[];
 	/**
 	 * Names of the roles that named this database in their permissions, plus any `super_user` role, or
@@ -159,7 +178,11 @@ export function serializeArchiveManifest(manifest: BackupArchiveManifest): strin
 }
 
 /**
+<<<<<<< HEAD
  * A malformed manifest is an error, not a silent "unidentified" — only an archive that predates
+=======
+ * A malformed manifest is an error, not a silent "unidentified": only an archive that predates
+>>>>>>> ab4ed47ba (Close the round-3 review findings on pins, ordering and repository creation)
  * manifests is eligible for the operator's provenance override.
  */
 export function parseArchiveManifest(contents: string): BackupArchiveManifest {
@@ -189,7 +212,7 @@ export function assertArchiveManifestShape(parsed: any): BackupArchiveManifest {
 	return parsed as BackupArchiveManifest;
 }
 
-/** Refuse an archive this build cannot read. Both checks fail closed on the unknown. */
+/** Both checks fail closed on the unknown. */
 export function assertArchiveRestorable(manifest: BackupArchiveManifest): void {
 	assertArchiveManifestShape(manifest);
 	if (manifest.archive_schema_version > ARCHIVE_SCHEMA_VERSION) {
@@ -207,7 +230,7 @@ export function assertArchiveRestorable(manifest: BackupArchiveManifest): void {
 	}
 }
 
-/** How an archive's provenance should be reported back to the operator. */
+/** How an archive's provenance is reported back to the operator. */
 export function describeArchiveProvenance(manifest: BackupArchiveManifest | null): Record<string, unknown> {
 	if (!manifest) return { identified: false };
 	return {
