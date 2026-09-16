@@ -92,6 +92,8 @@ export function droppingMarkerPath(dbPath: string): string {
 }
 
 export type RestoreState = 'in-progress' | 'incomplete' | 'clear';
+/** The states that mean "do not load" — what `withRestoreExclusion` reports to its caller. */
+export type BlockedRestoreState = Exclude<RestoreState, 'clear'>;
 
 /**
  * Whether a `.restoring` marker exists for a database. Cheaper than `checkRestoreState` and, unlike
@@ -142,8 +144,17 @@ export type RestoreLock = {
 export function checkRestoreState(dbPath: string): RestoreState {
 	if (!pathPresent(restoringMarkerPath(dbPath))) return 'clear';
 	const lockPath = restoreLockPath(dbPath);
+<<<<<<< HEAD
 	if (pathPresent(lockPath)) {
 		const token = tryFileLock(lockPath);
+=======
+	if (existsSync(lockPath)) {
+		// A SHARED probe answers exactly the question being asked — "is a restore holding this
+		// exclusively?" — and coexists with every other reader. An exclusive probe answered the same
+		// question by conflicting with all of them, so concurrent rescans, and now concurrent database
+		// opens (`withRestoreExclusion`), could each read a healthy database as 'in-progress'.
+		const token = tryFileLock(lockPath, true);
+>>>>>>> 58984cdd3 (Make the restore marker an exclusion, not a check before an open)
 		if (token === 0) return 'in-progress';
 		fileLockRelease(token);
 	}
@@ -151,8 +162,39 @@ export function checkRestoreState(dbPath: string): RestoreState {
 }
 
 /**
+<<<<<<< HEAD
  * Take the per-database restore lock without writing a marker. Restore and drop build their durable
  * protocols on this shared exclusion primitive. Throws (statusCode 409) if the lock is already held.
+=======
+ * Open a database under the restore lock, held in shared mode across the marker check and the open
+ * itself.
+ *
+ * The marker on its own is a check, not an exclusion: a caller could read "not blocked", be
+ * descheduled, and open the directory after a restore had claimed and begun purging it. Holding the
+ * lock shared closes that window from the reader's side — a restore's exclusive acquire cannot
+ * succeed while any opener holds it, and no opener can start while a restore holds it — and readers
+ * never exclude each other.
+ *
+ * `blocked` is called when a marker is present, so each caller can decide between throwing (an
+ * on-demand open) and skipping (the startup scan).
+ */
+export function withRestoreExclusion<T>(dbPath: string, open: () => T, blocked: (state: BlockedRestoreState) => T): T {
+	mkdirSync(restoreMetaDir(dbPath), { recursive: true });
+	const token = tryFileLock(restoreLockPath(dbPath), true);
+	if (token === 0) return blocked('in-progress');
+	try {
+		if (existsSync(restoringMarkerPath(dbPath))) return blocked('incomplete');
+		return open();
+	} finally {
+		fileLockRelease(token);
+	}
+}
+
+/**
+ * Take the per-database restore lock without writing a marker. Used by `dropDatabase` so a drop and
+ * a restore serialize on the same primitive: whichever takes the lock first runs to completion; the
+ * other gets a 409. Throws (statusCode 409) if the lock is already held.
+>>>>>>> 58984cdd3 (Make the restore marker an exclusion, not a check before an open)
  */
 export function acquireRestoreLock(dbPath: string): RestoreLock {
 	const metaDir = restoreMetaDir(dbPath);

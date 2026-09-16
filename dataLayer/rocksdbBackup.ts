@@ -1244,13 +1244,6 @@ export async function restoreBackupOffline(
 	const manifest = resolved.manifest;
 	if (targetDatabase !== undefined) validateDatabaseName(targetDatabase);
 	const databaseDir = resolveDatabasePath(targetDatabase ?? databaseName);
-	if (targetDatabase !== undefined && targetDatabase !== databaseName && !isMissingOrEmptyDir(databaseDir)) {
-		// target_database is documented as non-destructive: never purge an existing database of
-		// that name out from under the operator
-		throw new ClientError(
-			`target_database '${targetDatabase}' already exists at ${databaseDir}; restoring into it would destroy it — choose a new name, or restore in place by omitting target_database`
-		);
-	}
 	// reject a backup with more blob roots than the target's current config before anything
 	// destructive (records persist their root index, so collapsing would mis-address blobs)
 	const blobRoots = getBlobPathsForDatabaseName(targetDatabase ?? databaseName);
@@ -1258,10 +1251,24 @@ export async function restoreBackupOffline(
 	assertEngineOnlyRestoreAllowed(targetDatabase ?? databaseName, { backupHasBlobs: manifest.blobs, allowEngineOnly });
 	const pinId = restorePinId(databaseDir);
 	let destructionStarted = false;
+<<<<<<< HEAD
 	// As online, claim before marking under both locks, and mark before probing the destination.
 	const lock = await withBackupRepositoryLock(backupDir, databaseName, async () => {
 		await findBackup(backupDir, backupId as number, databaseName);
 		return beginRestoreForDatabase(databaseDir, targetDatabase ?? databaseName, () =>
+=======
+	try {
+		// Checked here, inside the reservation, not before it: a create_database racing this restore
+		// would otherwise pass the absence check and then lose the database it just made. Nothing
+		// destructive has run yet, so a failure here clears a marker this call wrote.
+		if (targetDatabase !== undefined && targetDatabase !== databaseName && !isMissingOrEmptyDir(databaseDir)) {
+			throw new ClientError(
+				`target_database '${targetDatabase}' already exists at ${databaseDir}; restoring into it would destroy it — choose a new name, or restore in place by omitting target_database`
+			);
+		}
+		// Claim the source, then re-check it survived the gap since it was resolved.
+		await withBackupRepositoryLock(backupDir, databaseName, async () => {
+>>>>>>> 58984cdd3 (Make the restore marker an exclusion, not a check before an open)
 			pinBackup(
 				backupDir,
 				pinId,
