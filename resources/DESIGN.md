@@ -783,3 +783,7 @@ replay re-encodes the record but never re-appends its audit entry (replay transa
 The row bit reflects its latest mutation, so a caller needing a row to stay local re-asserts it on every
 mutation. Reload and derived-index `evict` markers are always local-only; lock control entries never are.
 Enforced by `unitTests/resources/localOnly.test.js` (both engines; crash + boot replay on RocksDB).
+
+## This node's short id is 0, confirmed per audit store (`nodeIdMapping.ts` `getThisNodeId`)
+
+Every audited write stamps the writing node's short id, so `getThisNodeId` sits on the write path. `getIdMappingRecord` leaves the current node name (`getThisNodeName()`, which `server.hostname` returns) at id `0` whenever it runs, remapping a previous local name to a fresh id on a rename, and no other mapping writer assigns `0`. `getThisNodeId` therefore reads and unpacks the mapping record only to confirm that, and caches the confirmation per audit store and node name; a different name (after `clearThisNodeName()`) takes the read path again, which performs the remap. The confirmation is per worker while the record is shared, and a worker that resolved a different name remaps the record under the others, so it expires after `THIS_NODE_ID_CONFIRM_MS` and `invalidateNodeNames` drops it wherever the record is written. Pinned by `unitTests/resources/thisNodeId.test.js`.
