@@ -867,7 +867,7 @@ async function verifyDatabaseClosed(databaseDir: string, databaseName: string): 
  * One pin per target database, not per attempt: two attempts can never collide on it, and a rerun
  * after a failed restore reuses the claim the failed attempt left protecting its source.
  */
-function restorePinId(databaseDir: string): string {
+export function restorePinId(databaseDir: string): string {
 	return `restore-${createHash('sha256').update(resolve(databaseDir)).digest('hex').slice(0, 32)}`;
 }
 
@@ -1328,6 +1328,7 @@ export async function restoreBackupOffline(
 	// As online, claim before marking under both locks, and mark before probing the destination.
 	const lock = await withBackupRepositoryLock(backupDir, databaseName, async () => {
 		await findBackup(backupDir, backupId as number, databaseName);
+<<<<<<< HEAD
 		return beginRestoreForDatabase(databaseDir, targetDatabase ?? databaseName, () =>
 =======
 	try {
@@ -1361,6 +1362,27 @@ export async function restoreBackupOffline(
 			);
 		});
 >>>>>>> ab4ed47ba (Close the round-3 review findings on pins, ordering and repository creation)
+=======
+		return beginRestoreForDatabase(databaseDir, targetDatabase ?? databaseName, () => {
+			// Inside the reservation, so a create_database racing this restore cannot pass the absence
+			// check and then lose the database it just made — and ahead of the claim, because a rejection
+			// here must not replace the pin an earlier incomplete restore of this target still needs.
+			if (targetDatabase !== undefined && targetDatabase !== databaseName && !isMissingOrEmptyDir(databaseDir)) {
+				throw new ClientError(
+					`target_database '${targetDatabase}' already exists at ${databaseDir}; restoring into it would destroy it — choose a new name, or restore in place by omitting target_database`
+				);
+			}
+			pinBackup(
+				backupDir,
+				pinId,
+				backupId as number,
+				`restore of database '${targetDatabase ?? databaseName}'`,
+				databaseDir
+			);
+		});
+	});
+	try {
+>>>>>>> a62f92d4c (Close the two races the merged exclusion left open)
 		// The offline path is entered only when the CLI sees no running server (getHdbPid), but that is
 		// a heuristic: the PID file is briefly absent mid-`harper restart`, and backups.restore's
 		// purgeAllFiles never takes RocksDB's own lock. Probe that lock by opening the database — a live

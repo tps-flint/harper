@@ -798,16 +798,7 @@ export function getDatabases(): Databases {
 				) {
 					// blockedByRestore was read once for the whole scan; re-check under the lock so a restore
 					// that started mid-scan cannot have this directory opened out from under it
-					withRestoreExclusion(
-						dbPath,
-						() => readRocksMetaDb(dbPath, null, dbName),
-						(state) => {
-							logger.warn(
-								`Not loading database '${dbName}': ${state === 'in-progress' ? 'a restore is in progress' : 'an incomplete restore must be rerun'}`
-							);
-							return undefined;
-						}
-					);
+					openUnlessBlocked(dbPath, dbName);
 					continue;
 				}
 			} catch (err) {
@@ -866,16 +857,7 @@ export function getDatabases(): Databases {
 								files.find((file) => file.name === 'CURRENT')?.isFile() &&
 								files.some((file) => file.name.startsWith('MANIFEST-'))
 							) {
-								withRestoreExclusion(
-									dbPath,
-									() => readRocksMetaDb(dbPath, null, dbName),
-									(state) => {
-										logger.warn(
-											`Not loading database '${dbName}': ${state === 'in-progress' ? 'a restore is in progress' : 'an incomplete restore must be rerun'}`
-										);
-										return undefined;
-									}
-								);
+								openUnlessBlocked(dbPath, dbName);
 								continue;
 							}
 						} catch (err) {
@@ -2409,6 +2391,7 @@ function openDatabaseRoot(
 	return rootStore;
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 function throwIfBlockedByRestore(dbPath: string, databaseName: string): void {
 	if (databaseDropMarkerPresent(dbPath)) {
 		const error: any = new Error(
@@ -2428,6 +2411,38 @@ function throwIfBlockedByRestore(dbPath: string, databaseName: string): void {
 		throw error;
 	}
 =======
+=======
+/**
+ * Load a scanned RocksDB database unless a restore or a drop has claimed it. Both markers are read
+ * inside the exclusion: the scan samples the blocked sets once, so one published mid-scan is only
+ * visible to a re-read under the lock, and the drop protocol takes the same lock a restore does.
+ */
+function openUnlessBlocked(dbPath: string, dbName: string): void {
+	withRestoreExclusion(
+		dbPath,
+		() => {
+			if (databaseDropMarkerPresent(dbPath)) {
+				logger.warn(`Not loading database '${dbName}': an incomplete drop must be rerun`);
+				return undefined;
+			}
+			return readRocksMetaDb(dbPath, null, dbName);
+		},
+		(state) => {
+			logger.warn(
+				`Not loading database '${dbName}': ${state === 'in-progress' ? 'a restore is in progress' : 'an incomplete restore must be rerun'}`
+			);
+			return undefined;
+		}
+	);
+}
+
+function throwBlockedByDrop(databaseName: string): never {
+	const error: any = new Error(`Database '${databaseName}' has an incomplete drop; retry drop_database to recover it`);
+	error.statusCode = 409;
+	throw error;
+}
+
+>>>>>>> a62f92d4c (Close the two races the merged exclusion left open)
 function throwBlockedByRestore(databaseName: string, restoreState: BlockedRestoreState): never {
 	const error: any = new Error(
 		restoreState === 'in-progress'
