@@ -582,12 +582,11 @@ async function listenOnPortsBun() {
 			}
 
 			// Create a corresponding Unix Domain Socket mirror for secure ports
-			const socketsDir = join(env.getHdbBasePath(), 'sockets');
-			if (
-				config.isSecure &&
-				env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS) &&
-				httpComponent.ensureSocketsDirectory(socketsDir)
-			) {
+			const socketsDir =
+				config.isSecure && env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)
+					? httpComponent.ensureSocketsDirectory()
+					: undefined;
+			if (socketsDir) {
 				const isolatedApplication = thisThreadsIsolatedApplication();
 				const socketName = isolatedApplication
 					? applicationSocketName(isolatedApplication, port)
@@ -723,8 +722,10 @@ function onSocket(listener, options) {
 		SERVERS[options.securePort] = secureSocketServer;
 
 		// Create a corresponding Unix Domain Socket mirror for the secure socket
-		const socketsDir = join(env.getHdbBasePath(), 'sockets');
-		if (env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS) && httpComponent.ensureSocketsDirectory(socketsDir)) {
+		const socketsDir = env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)
+			? httpComponent.ensureSocketsDirectory()
+			: undefined;
+		if (socketsDir) {
 			const isolatedApplication = thisThreadsIsolatedApplication();
 			const socketName = isolatedApplication
 				? applicationSocketName(isolatedApplication, options.securePort)
