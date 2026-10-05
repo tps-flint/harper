@@ -265,6 +265,9 @@ function startServers() {
 	const started = loaded
 		.then(() => listening)
 		.then(() => {
+			// An isolated worker is reachable only through its mirror; without one it must not report ready.
+			if (thisThreadsIsolatedApplication() && !httpComponent.hasUdsMirror())
+				throw new Error(`Isolated application ${thisThreadsIsolatedApplication()} has no UDS mirror`);
 			reportStartupPhase('ready');
 			if (getWorkerIndex() === 0) {
 				try {
@@ -675,10 +678,6 @@ function onSocket(listener, options) {
 	let getComponentName = require('../../components/componentLoader.ts').getComponentName;
 	let socketServer;
 	if (options.securePort) {
-		// Before any registration: a throw here must not leave a listener without its mirror.
-		const socketsDir = env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)
-			? httpComponent.ensureSocketsDirectory()
-			: undefined;
 		setPortServerMap(options.securePort, { protocol_name: 'TLS', name: getComponentName() });
 		// usageType lets a caller's certificates (tagged via hdb_certificate.uses) win the quality
 		// bonus in createTLSSelector for this listener, the same way http.ts's usageType does for
@@ -726,6 +725,9 @@ function onSocket(listener, options) {
 		SERVERS[options.securePort] = secureSocketServer;
 
 		// Create a corresponding Unix Domain Socket mirror for the secure socket
+		const socketsDir = env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)
+			? httpComponent.ensureSocketsDirectory()
+			: undefined;
 		if (socketsDir) {
 			const isolatedApplication = thisThreadsIsolatedApplication();
 			const socketName = isolatedApplication
