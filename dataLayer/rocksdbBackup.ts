@@ -404,8 +404,8 @@ async function finalizeBackup(
 ): Promise<void> {
 	try {
 		const blobRoots = getBlobPathsForDatabaseName(databaseName);
-		// Before the snapshot so gigabytes are not copied for a backup that is already gone, and again
-		// after it because that copy is the longest stretch an outside writer could remove it in.
+		// Before the snapshot so gigabytes are not copied for a backup already gone, and after it
+		// because that copy is the longest stretch an outside writer could remove it in.
 		await assertBackupStillPresent(backupDir, backupId, databaseName);
 		if (blobs) await snapshotBlobs(backupDir, backupId, blobRoots);
 <<<<<<< HEAD
@@ -870,7 +870,7 @@ export function restorePinId(databaseDir: string): string {
 function beginRestoreForDatabase(
 	databaseDir: string,
 	databaseName: string,
-	beforePublishMarker: () => void
+	beforePublishMarker: (preexisting: boolean) => void
 ): RestoreLock {
 	try {
 		return beginRestore(databaseDir, beforePublishMarker);
@@ -1327,6 +1327,7 @@ export async function restoreBackupOffline(
 	const lock = await withBackupRepositoryLock(backupDir, databaseName, async () => {
 		await findBackup(backupDir, backupId as number, databaseName);
 <<<<<<< HEAD
+<<<<<<< HEAD
 		return beginRestoreForDatabase(databaseDir, targetDatabase ?? databaseName, () =>
 =======
 	try {
@@ -1362,10 +1363,22 @@ export async function restoreBackupOffline(
 >>>>>>> ab4ed47ba (Close the round-3 review findings on pins, ordering and repository creation)
 =======
 		return beginRestoreForDatabase(databaseDir, targetDatabase ?? databaseName, () => {
+=======
+		return beginRestoreForDatabase(databaseDir, targetDatabase ?? databaseName, (preexisting) => {
+>>>>>>> 7369e983e (Stop refusing the rerun of an interrupted restore into its own target)
 			// Inside the reservation, so a create_database racing this restore cannot pass the absence
-			// check and then lose the database it just made — and ahead of the claim, because a rejection
-			// here must not replace the pin an earlier incomplete restore of this target still needs.
-			if (targetDatabase !== undefined && targetDatabase !== databaseName && !isMissingOrEmptyDir(databaseDir)) {
+			// check and then lose the database it just made.
+			// `preexisting` exempts a target that carries its own restoring marker: that directory is
+			// this protocol's debris from an interrupted restore of the same target, not a database an
+			// operator made. Refusing it wedges the rerun for good — drop_database refuses a marked
+			// directory too, and the marker keeps the pin live, so every purge of the source the rerun
+			// needs 409s as well.
+			if (
+				targetDatabase !== undefined &&
+				targetDatabase !== databaseName &&
+				!preexisting &&
+				!isMissingOrEmptyDir(databaseDir)
+			) {
 				throw new ClientError(
 					`target_database '${targetDatabase}' already exists at ${databaseDir}; restoring into it would destroy it — choose a new name, or restore in place by omitting target_database`
 				);

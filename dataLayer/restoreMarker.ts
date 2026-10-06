@@ -143,6 +143,7 @@ export function checkRestoreState(dbPath: string): RestoreState {
 	const lockPath = restoreLockPath(dbPath);
 <<<<<<< HEAD
 	if (pathPresent(lockPath)) {
+<<<<<<< HEAD
 		const token = tryFileLock(lockPath);
 =======
 	if (existsSync(lockPath)) {
@@ -150,6 +151,10 @@ export function checkRestoreState(dbPath: string): RestoreState {
 		// exclusively?" — and coexists with every other reader. An exclusive probe answered the same
 		// question by conflicting with all of them, so concurrent rescans, and now concurrent database
 		// opens (`withRestoreExclusion`), could each read a healthy database as 'in-progress'.
+=======
+		// Shared, so it coexists with every other reader. An exclusive probe answers "is a restore
+		// holding this?" by conflicting with all of them, reading a healthy database as 'in-progress'.
+>>>>>>> 7369e983e (Stop refusing the rerun of an interrupted restore into its own target)
 		const token = tryFileLock(lockPath, true);
 >>>>>>> 58984cdd3 (Make the restore marker an exclusion, not a check before an open)
 		if (token === 0) return 'in-progress';
@@ -188,6 +193,7 @@ export function withRestoreExclusion<T>(dbPath: string, open: () => T, blocked: 
 		// read, and which is what every caller did before.
 		return existsSync(restoringMarkerPath(dbPath)) ? blocked('incomplete') : open();
 	}
+<<<<<<< HEAD
 	// A shared acquire fails only against an exclusive holder — a restore. If the lock file does not
 	// even exist, nothing can be holding it, so the failure is the filesystem's and the fallback
 	// applies rather than reporting every database under the root as being restored.
@@ -197,6 +203,11 @@ export function withRestoreExclusion<T>(dbPath: string, open: () => T, blocked: 
 		}
 		return blocked('in-progress');
 	}
+=======
+	// tryFileLock throws on an open failure and returns 0 only on contention, so a zero token means
+	// an exclusive holder — a restore or a drop — and nothing else.
+	if (token === 0) return blocked('in-progress');
+>>>>>>> 7369e983e (Stop refusing the rerun of an interrupted restore into its own target)
 	try {
 		if (existsSync(restoringMarkerPath(dbPath))) return blocked('incomplete');
 		return open();
@@ -218,9 +229,8 @@ export function acquireRestoreLock(dbPath: string): RestoreLock {
 	if (createMetaDir) fsyncDirectory(dirname(metaDir));
 	const token = tryFileLock(restoreLockPath(dbPath));
 	if (token === 0) {
-		// The holder cannot be named: flock reports contention, not who. Since `withRestoreExclusion`
-		// every open holds this lock shared for as long as the open runs, so a conflict here is a
-		// restore, a drop, or an opener — reporting it as a restore sends the operator hunting one.
+		// flock reports contention, not who holds it, and every open holds this shared for its duration
+		// — so naming a restore here would send the operator hunting one that need not exist.
 		const error: any = new Error(
 			`Cannot claim the database at ${dbPath}: a restore, a drop, or a database open holds its lock; retry once that finishes`
 		);
@@ -274,14 +284,16 @@ function publishRestoringMarker(dbPath: string): void {
  * a failed recovery attempt knows not to clear it). Throws (statusCode 409) if another restore
  * already holds the lock.
  * `beforePublishMarker` runs synchronously under the lock, after admission but before publication,
- * so a caller can durably claim its source before a crash can leave a restoring marker behind.
+ * so a caller can durably claim its source before a crash can leave a restoring marker behind. It
+ * receives `preexisting` — the marker reading taken under this lock — so a caller can tell an
+ * interrupted restore of this same target from a directory that was never ours.
  *
  * An intact marker is left exactly as it is. A recovery attempt runs over a directory an earlier
  * restore may have half-purged, so the marker it finds is the only thing keeping that directory
  * from loading as healthy; rewriting it buys nothing (the content it would write is the content
  * already there) and risks everything.
  */
-export function beginRestore(dbPath: string, beforePublishMarker?: () => void): RestoreLock {
+export function beginRestore(dbPath: string, beforePublishMarker?: (preexisting: boolean) => void): RestoreLock {
 	const markerPath = restoringMarkerPath(dbPath);
 	const lock = acquireRestoreLock(dbPath);
 	// Sampled while holding the lock, not before it: a restore that waited out an earlier one would
@@ -294,7 +306,7 @@ export function beginRestore(dbPath: string, beforePublishMarker?: () => void): 
 			error.statusCode = 409;
 			throw error;
 		}
-		beforePublishMarker?.();
+		beforePublishMarker?.(lock.preexisting);
 		if (!lock.preexisting || !markerIsIntact(markerPath, dbPath)) publishRestoringMarker(dbPath);
 		// An intact marker is kept, but its durability is not assumed: the publisher that wrote it may
 		// have been interrupted between the rename and this flush, which would leave the directory
