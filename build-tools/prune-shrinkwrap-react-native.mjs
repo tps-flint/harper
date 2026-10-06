@@ -28,8 +28,8 @@
 // dispensable edges and the set reachable *without* them, and deletes only the
 // difference, so the removed set is derived rather than a hardcoded list of directory
 // names that would silently rot as alasql's tree shifts. A package left in the pruned
-// shrinkwrap is therefore not proof that react-native never reached it: one a production
-// dependency also needs stays.
+// shrinkwrap is therefore not proof that react-native never reached it: it stays whenever
+// a production dependency also needs it.
 //
 // For react-native-fs, only edges declared as an `optionalDependency` are severed. A package
 // that hard-depends on react-native-fs keeps it alive for the whole tree — otherwise
